@@ -8,8 +8,10 @@
 
 #pragma newdecls required
 
-char g_AudioCommand[512][64];
-char g_AudioPath[512][PLATFORM_MAX_PATH];
+#define MAX_SAYSOUNDS 512
+
+char g_sAudioCommand[MAX_SAYSOUNDS][64];
+char g_sAudioPath[MAX_SAYSOUNDS][PLATFORM_MAX_PATH];
 
 Handle g_hCookieMute = INVALID_HANDLE;
 bool g_bMuted[MAXPLAYERS+1];
@@ -17,9 +19,7 @@ bool g_bMuted[MAXPLAYERS+1];
 AudioPlayer g_AudioPlayer[MAXPLAYERS+1];
 Menu g_AudioMenu;
 
-KeyValues kv;
-
-int iTotal;
+int g_iTotal;
 
 public Plugin myinfo = 
 {
@@ -79,21 +79,21 @@ public void OnClientDisconnect(int client)
 
 public void OnMapStart()
 {
-	iTotal = 0;
+	g_iTotal = 0;
 
 	char sConfigPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sConfigPath, sizeof(sConfigPath), "configs/cargolist.txt");
 
-	kv = CreateKeyValues("cargo");
+	KeyValues kv = CreateKeyValues("cargo");
 
 	FileToKeyValues(kv, sConfigPath);
 	if(KvGotoFirstSubKey(kv))
 	{	
 		do
 		{
-			KvGetSectionName(kv, g_AudioCommand[iTotal], 64);
-			KvGetString(kv, "path", g_AudioPath[iTotal], 128);
-			iTotal++;
+			KvGetSectionName(kv, g_sAudioCommand[g_iTotal], 64);
+			KvGetString(kv, "path", g_sAudioPath[g_iTotal], 128);
+			g_iTotal++;
 		}
 		while(KvGotoNextKey(kv));
 	}
@@ -142,7 +142,14 @@ void ToggleMuteCargo(int client, bool mute)
 	else
 		allow = Listen_Yes;
 
-	SetListenOverride(client, CallTheBot(), allow);
+	int bot = CallTheBot();
+	if(bot == -1)
+	{
+		LogError("[Cargo] There is no GOTV Bot present in server.");
+		return;
+	}
+
+	SetListenOverride(client, bot, allow);
 }
 
 public Action OnClientSay(int client, const char[] command, int argc)
@@ -153,7 +160,7 @@ public Action OnClientSay(int client, const char[] command, int argc)
 
 	if(index != -1)
 	{
-		PlayAudioToAll(client, g_AudioPath[index]);
+		PlayAudioToAll(client, g_sAudioPath[index]);
 	} 
 
 	return Plugin_Continue;
@@ -208,8 +215,6 @@ public Action YoutubeCommand(int client, int args)
 		return Plugin_Handled;
 	}
 
-
-
 	bool setnetwork = SteamWorks_SetHTTPRequestNetworkActivityTimeout(request, 30);
 	bool setcontext = SteamWorks_SetHTTPRequestContextValue(request, client == 0 ? client : GetClientSerial(client));
 	bool setcallback = SteamWorks_SetHTTPCallbacks(request, TitleReceived);
@@ -243,15 +248,15 @@ public int TitleReceived(Handle hRequest, bool bFailure, bool bRequestSuccessful
 	{
 		client = serial;
 	}
-	else if(client < 0 || client > MaxClients)
-	{
-		PrintToServer("Client Index not valid [%i].", client);
-		CloseHandle(hRequest);
-		return 0;
-	}
-	else
+	else if(serial > 0)
 	{
 		client = GetClientFromSerial(serial);
+		if(client == 0)
+		{
+			PrintToServer("[Cargo] Client Index From Serial is not valid.");
+			CloseHandle(hRequest);
+			return 0;
+		}
 	}
 	
 	if(!bRequestSuccessful || bFailure)
@@ -340,11 +345,11 @@ Menu BuildAudioMenu(const char[] filter)
 {
 	Menu menu = new Menu(CargoMenuHandler, MENU_ACTIONS_ALL);
 
-	for(int i = 0; i < iTotal; i++)
+	for(int i = 0; i < g_iTotal; i++)
 	{
-		if(!filter[0] || StrContains(g_AudioCommand[i], filter, false) != -1)
+		if(!filter[0] || StrContains(g_sAudioCommand[i], filter, false) != -1)
 		{
-			menu.AddItem(g_AudioCommand[i], g_AudioCommand[i]);
+			menu.AddItem(g_sAudioCommand[i], g_sAudioCommand[i]);
 		}
 	}
 	menu.ExitButton = true;
@@ -370,7 +375,7 @@ public int CargoMenuHandler(Menu menu, MenuAction action, int param1, int param2
 
 			else
 			{
-				PlayAudioToAll(param1, g_AudioPath[found]);
+				PlayAudioToAll(param1, g_sAudioPath[found]);
 			}
 
 		}
@@ -385,9 +390,9 @@ public int CargoMenuHandler(Menu menu, MenuAction action, int param1, int param2
 
 int GetAudioIndexByName(const char[] name)
 {
-	for(int i = 0; i < iTotal; i++)
+	for(int i = 0; i < g_iTotal; i++)
 	{
-		if(StrEqual(name, g_AudioCommand[i], false))
+		if(StrEqual(name, g_sAudioCommand[i], false))
 			return i;
 	}
 	return -1;
@@ -420,6 +425,12 @@ void PlayAudioToAll(int client, const char[] uri, bool youtube = false)
 		Format(source, sizeof(source), "%s", uri);
 	
 	int bot = CallTheBot();
+	
+	if(bot == -1)
+	{
+		LogError("[Cargo] There is no GOTV Bot present in server.");
+		return;
+	}
 	
 	g_AudioPlayer[client] = new AudioPlayer();
 	g_AudioPlayer[client].PlayAsClient(bot, source);
