@@ -1,0 +1,43 @@
+"cargo"
+{
+	"!akarin"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/akarin.mp3"
+	}
+	"!au"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/au.mp3"
+	}
+	"!ayayo"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/ayayo.mp3"
+	}
+	"!baka"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/baka.mp3"
+	}
+	"!bully"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/bully.mp3"
+	}
+	"!cancer"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/cancer.mp3"
+	}
+	"!chosen"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/ChosenOne.mp3"
+	}
+	"!deni"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/deni.mp3"
+	}
+	"!ehe"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/ehe.mp3"
+	}
+	"!hihi"
+	{
+		"path"	"addons/sourcemod/data/cargo_sound/hihi.mp3"
+	}
+}
