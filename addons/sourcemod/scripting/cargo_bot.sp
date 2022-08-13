@@ -21,12 +21,23 @@ Menu g_AudioMenu;
 
 int g_iTotal;
 
+ConVar g_Cvar_AntiSpam;
+ConVar g_Cvar_MaxSpam;
+
+bool g_bAntiSpam;
+int g_iMaxSpam;
+
+int g_iStacking;
+int g_iAllowAgain;
+
+Handle g_hTimerCheckSpamming = INVALID_HANDLE;
+
 public Plugin myinfo = 
 {
-	name = "Cargo Bot",
+	name = "[CS:GO] Cargo Bot",
 	author = "Oylsister, Special Thanks: Cruze, Vauff, Impact",
 	description = "Relative to Sympho bot which can play sound on their voice channel, so player doesn't need to download sound file.",
-	version = "1.0",
+	version = "2.0",
 	url = "https://github.com/oylsister/Cargo-Bot"
 }
 
@@ -43,6 +54,9 @@ public void OnPluginStart()
 
 	AddCommandListener(OnClientSay, "say");
 	AddCommandListener(OnClientSay, "say_team");
+
+	g_Cvar_AntiSpam = CreateConVar("sm_cargo_enable_antispam", "1.0", "Enable Anti Spaming", _, true, 0.0, true, 1.0);
+	g_Cvar_MaxSpam = CreateConVar("sm_cargo_maxspam", "10.0", "Maximum spam that allow in 10 seconds",  _, true, 1.0, false);
 
 	g_hCookieMute = RegClientCookie("sm_cargo_bot_mute", "Mute Cargo Bot Sound", CookieAccess_Protected);
 
@@ -104,6 +118,22 @@ public void OnMapStart()
 		delete g_AudioMenu;
 
 	g_AudioMenu = BuildAudioMenu("");
+
+	g_iStacking = 0;
+
+	g_bAntiSpam = g_Cvar_AntiSpam.BoolValue;
+
+	if(g_bAntiSpam && g_hTimerCheckSpamming == INVALID_HANDLE)
+		g_hTimerCheckSpamming = CreateTimer(10.0, CheckSpamming, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public void OnMapEnd()
+{
+	if(g_hTimerCheckSpamming != INVALID_HANDLE)
+	{
+		KillTimer(g_hTimerCheckSpamming);
+		g_hTimerCheckSpamming = INVALID_HANDLE;
+	}
 }
 
 public Action MuteCargo_Command(int client, int args)
@@ -160,9 +190,22 @@ public Action OnClientSay(int client, const char[] command, int argc)
 
 	if(index != -1)
 	{
-		PlayAudioToAll(client, g_sAudioPath[index]);
+		if(g_iAllowAgain < GetTime() || IsClientAdmin(client))
+			PlayAudioToAll(client, g_sAudioPath[index]);
 	} 
 
+	return Plugin_Continue;
+}
+
+public Action CheckSpamming(Handle timer)
+{
+	g_iMaxSpam = g_Cvar_MaxSpam.IntValue;
+
+	if(g_iStacking >= g_iMaxSpam)
+	{
+		g_iAllowAgain = GetTime() + 60;
+		PrintToChatAll( " \x04[Cargo]\x01 Anti-Spamming has been activated, you can use sound again in %d seconds.", g_iAllowAgain - GetTime());
+	}
 	return Plugin_Continue;
 }
 
@@ -236,7 +279,9 @@ public Action YoutubeCommand(int client, int args)
 	
 	SteamWorks_PrioritizeHTTPRequest(request);
 
-	PlayAudioToAll(client, sUrl, true);
+	if(g_iAllowAgain < GetTime() || IsClientAdmin(client))
+		PlayAudioToAll(client, sUrl, true);
+
 	return Plugin_Handled;
 }
 
@@ -375,7 +420,8 @@ public int CargoMenuHandler(Menu menu, MenuAction action, int param1, int param2
 
 			else
 			{
-				PlayAudioToAll(param1, g_sAudioPath[found]);
+				if(g_iAllowAgain < GetTime() || IsClientAdmin(param1))
+					PlayAudioToAll(param1, g_sAudioPath[found]);
 			}
 
 		}
@@ -418,6 +464,9 @@ void PlayAudioToAll(int client, const char[] uri, bool youtube = false)
 {
 	char source[PLATFORM_MAX_PATH];
 
+	if(!IsClientAdmin(client))
+		g_iStacking++;
+
 	if(!youtube)
 		Format(source, sizeof(source), "csgo/%s", uri);
 
@@ -436,4 +485,9 @@ void PlayAudioToAll(int client, const char[] uri, bool youtube = false)
 	g_AudioPlayer[client].PlayAsClient(bot, source);
 	
 	return;
+}
+
+bool IsClientAdmin(int client)
+{
+	return CheckCommandAccess(client, "sm_admin", ADMFLAG_BAN);
 }
