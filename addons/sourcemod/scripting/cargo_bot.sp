@@ -23,12 +23,16 @@ int g_iTotal;
 
 ConVar g_Cvar_AntiSpam;
 ConVar g_Cvar_MaxSpam;
+ConVar g_Cvar_Cooldown;
 
 bool g_bAntiSpam;
 int g_iMaxSpam;
+float g_fCooldown;
+
+float g_fClientAllowAgain[MAXPLAYERS+1];
 
 int g_iStacking;
-int g_iAllowAgain;
+int g_iAllAllowAgain;
 
 Handle g_hTimerCheckSpamming = INVALID_HANDLE;
 
@@ -57,8 +61,12 @@ public void OnPluginStart()
 
 	g_Cvar_AntiSpam = CreateConVar("sm_cargo_enable_antispam", "1.0", "Enable Anti Spaming", _, true, 0.0, true, 1.0);
 	g_Cvar_MaxSpam = CreateConVar("sm_cargo_maxspam", "10.0", "Maximum spam that allow in 10 seconds",  _, true, 1.0, false);
+	g_Cvar_Cooldown = CreateConVar("sm_cargo_cooldown", "5.0", "Cooldown for each client after use one sound", _, true, 0.0, false);
 
 	g_hCookieMute = RegClientCookie("sm_cargo_bot_mute", "Mute Cargo Bot Sound", CookieAccess_Protected);
+
+	HookConVarChange(g_Cvar_AntiSpam, OnEnableAntiSpamChanged);
+	HookConVarChange(g_Cvar_MaxSpam, OnAntiSpamMaxAllowChanged);
 
 	for(int i = 1; i <= MaxClients; i++)
 	{
@@ -67,6 +75,34 @@ public void OnPluginStart()
 				OnClientCookiesCached(i);
 
 	}
+
+	AutoExecConfig(true, "Cargo_bot");
+}
+
+public void OnEnableAntiSpamChanged(ConVar cvar, const char[] oldValue, const char[] newValue)
+{
+	g_bAntiSpam = GetConVarBool(g_Cvar_AntiSpam);
+
+	if(g_hTimerCheckSpamming != INVALID_HANDLE)
+	{
+		KillTimer(g_hTimerCheckSpamming);
+		g_hTimerCheckSpamming = INVALID_HANDLE;
+	}
+
+	if(g_bAntiSpam)
+	{
+		CreateTimer(10.0, CheckSpamming, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+	}
+}
+
+public void OnAntiSpamMaxAllowChanged(ConVar cvar, const char[] oldValue, const char[] newValue)
+{
+	g_iMaxSpam = GetConVarInt(g_Cvar_MaxSpam);
+}
+
+public void OnCooldownChanged(ConVar cvar, const char[] oldValue, const char[] newValue)
+{
+	g_fCooldown = GetConVarFloat(g_Cvar_Cooldown);
 }
 
 public void OnClientCookiesCached(int client)
@@ -86,9 +122,15 @@ public void OnClientCookiesCached(int client)
 	ToggleMuteCargo(client, g_bMuted[client]);
 }
 
+public void OnClientPutInServer(int client)
+{
+	g_fClientAllowAgain[client] = 0.0;
+}
+
 public void OnClientDisconnect(int client)
 {
 	g_bMuted[client] = false;
+	g_fClientAllowAgain[client] = 0.0;
 }
 
 public void OnMapStart()
@@ -190,8 +232,19 @@ public Action OnClientSay(int client, const char[] command, int argc)
 
 	if(index != -1)
 	{
-		if(g_iAllowAgain < GetTime() || IsClientAdmin(client))
+		if(IsClientAdmin(client))
 			PlayAudioToAll(client, g_sAudioPath[index]);
+
+		else
+		{
+			if(IsClientInCooldown(client))
+			{
+				PrintToChat(client, " \x04[Cargo]\x01 You are now in cooldown, please wait for more %d seconds.", RoundToNearest(g_fClientAllowAgain[client] - GetEngineTime()));
+			}
+
+			else if(g_iAllAllowAgain < GetTime() && !IsClientInCooldown(client))
+				PlayAudioToAll(client, g_sAudioPath[index]);
+		}
 	} 
 
 	return Plugin_Continue;
@@ -203,8 +256,9 @@ public Action CheckSpamming(Handle timer)
 
 	if(g_iStacking >= g_iMaxSpam)
 	{
-		g_iAllowAgain = GetTime() + 60;
-		PrintToChatAll( " \x04[Cargo]\x01 Anti-Spamming has been activated, you can use sound again in %d seconds.", g_iAllowAgain - GetTime());
+		StopAllSound();
+		g_iAllAllowAgain = GetTime() + 60;
+		PrintToChatAll( " \x04[Cargo]\x01 Anti-Spamming has been activated, you can use sound again in %d seconds.", g_iAllAllowAgain - GetTime());
 	}
 	return Plugin_Continue;
 }
@@ -224,12 +278,18 @@ public Action StopPlayClientSound_Command(int client, int args)
 
 public Action StopPlayAllSound_Command(int client, int args)
 {
+	ShowActivity2(client, " \x04[Cargo]\x01", "Has stopped all playing sound.");
+	StopAllSound();
+	return Plugin_Handled;
+}
+
+void StopAllSound()
+{
 	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(g_AudioPlayer[i] != null && !g_AudioPlayer[i].IsFinished)
 			delete g_AudioPlayer[i];
 	}
-	return Plugin_Handled;
 }
 
 public Action ReloadCargo_Sound(int client, int args)
@@ -279,7 +339,7 @@ public Action YoutubeCommand(int client, int args)
 	
 	SteamWorks_PrioritizeHTTPRequest(request);
 
-	if(g_iAllowAgain < GetTime() || IsClientAdmin(client))
+	if(g_iAllAllowAgain < GetTime() || IsClientAdmin(client))
 		PlayAudioToAll(client, sUrl, true);
 
 	return Plugin_Handled;
@@ -420,8 +480,19 @@ public int CargoMenuHandler(Menu menu, MenuAction action, int param1, int param2
 
 			else
 			{
-				if(g_iAllowAgain < GetTime() || IsClientAdmin(param1))
+				if(IsClientAdmin(param1))
 					PlayAudioToAll(param1, g_sAudioPath[found]);
+
+				else
+				{
+					if(IsClientInCooldown(param1))
+					{
+						PrintToChat(param1, " \x04[Cargo]\x01 You are now in cooldown, please wait for more %d seconds.", RoundToNearest(g_fClientAllowAgain[param1] - GetEngineTime()));
+					}
+
+					else if(g_iAllAllowAgain < GetTime() && !IsClientInCooldown(param1))
+						PlayAudioToAll(param1, g_sAudioPath[found]);
+				}
 			}
 
 		}
@@ -465,7 +536,10 @@ void PlayAudioToAll(int client, const char[] uri, bool youtube = false)
 	char source[PLATFORM_MAX_PATH];
 
 	if(!IsClientAdmin(client))
+	{
+		SetClientCooldown(client);
 		g_iStacking++;
+	}
 
 	if(!youtube)
 		Format(source, sizeof(source), "csgo/%s", uri);
@@ -485,6 +559,21 @@ void PlayAudioToAll(int client, const char[] uri, bool youtube = false)
 	g_AudioPlayer[client].PlayAsClient(bot, source);
 	
 	return;
+}
+
+void SetClientCooldown(int client)
+{
+	g_fCooldown = g_Cvar_Cooldown.FloatValue;
+
+	g_fClientAllowAgain[client] = GetEngineTime() + g_fCooldown;
+}
+
+bool IsClientInCooldown(int client)
+{
+	if(g_fClientAllowAgain[client] < GetEngineTime())
+		return true;
+
+	return false;
 }
 
 bool IsClientAdmin(int client)
