@@ -1,5 +1,5 @@
 # Cargo-Bot
- Relative to Sympho bot which can play sound on their voice channel, so player doesn't need to download sound file. Recommend to use this for Linux since we haven't test for windows server yet.
+ Relative to Sympho bot which can play sound on their voice channel, so player doesn't need to download sound file. Work on both Windows and Linux server (test by Cruze03)
  
 ## Requirement
 - CSGO Only
