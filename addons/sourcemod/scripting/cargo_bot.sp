@@ -68,6 +68,11 @@ public void OnPluginStart()
 	HookConVarChange(g_Cvar_AntiSpam, OnEnableAntiSpamChanged);
 	HookConVarChange(g_Cvar_MaxSpam, OnAntiSpamMaxAllowChanged);
 
+	ConVar g_Cvar_tv_enable = FindConVar("tv_enable");
+
+	if(GetConVarInt(g_Cvar_tv_enable) != 1)
+		SetFailState("\"tv_enable\" is not enabled!, set it to 1 or plugin will not work!");
+
 	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(IsClientInGame(i))
