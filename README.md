@@ -6,3 +6,4 @@
 - FFmpeg
 - Youtube-dl
 - SM-Ext-Audio
+- Set "tv_enable" to 1
