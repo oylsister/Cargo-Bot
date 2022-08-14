@@ -3,7 +3,10 @@
  
 ## Requirement
 - CSGO Only
-- FFmpeg
-- Youtube-dl
+- FFmpeg - https://ffmpeg.org/download.html
+- Youtube-dl - https://youtube-dl.org/
 - SM-Ext-Audio
 - Set "tv_enable" to 1
+
+## Installation
+Simply drag all neccessary file to your game server and config cargolist.txt and add sound to specific path with your assign command.
