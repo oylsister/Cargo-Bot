@@ -575,7 +575,7 @@ void SetClientCooldown(int client)
 
 bool IsClientInCooldown(int client)
 {
-	if(g_fClientAllowAgain[client] < GetEngineTime())
+	if(g_fClientAllowAgain[client] > GetEngineTime())
 		return true;
 
 	return false;
