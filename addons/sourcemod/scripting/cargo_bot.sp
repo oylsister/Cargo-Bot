@@ -34,6 +34,9 @@ float g_fClientAllowAgain[MAXPLAYERS+1];
 int g_iStacking;
 int g_iAllAllowAgain;
 
+bool g_bBlockedAll = false;
+
+Handle g_hTimerRemoveStack = INVALID_HANDLE;
 Handle g_hTimerCheckSpamming = INVALID_HANDLE;
 
 public Plugin myinfo = 
@@ -170,8 +173,15 @@ public void OnMapStart()
 
 	g_bAntiSpam = g_Cvar_AntiSpam.BoolValue;
 
-	if(g_bAntiSpam && g_hTimerCheckSpamming == INVALID_HANDLE)
-		g_hTimerCheckSpamming = CreateTimer(10.0, CheckSpamming, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+	if(g_bAntiSpam)
+	{ 
+		if(g_hTimerCheckSpamming == INVALID_HANDLE)
+			g_hTimerCheckSpamming = CreateTimer(10.0, CheckSpamming, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		
+		if(g_hTimerRemoveStack == INVALID_HANDLE)
+			g_hTimerRemoveStack = CreateTimer(5.0, RemoveStacking, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+	}
+	g_bBlockedAll = false;
 }
 
 public void OnMapEnd()
@@ -247,8 +257,15 @@ public Action OnClientSay(int client, const char[] command, int argc)
 				PrintToChat(client, " \x04[Cargo]\x01 You are now in cooldown, please wait for more %d seconds.", RoundToNearest(g_fClientAllowAgain[client] - GetEngineTime()));
 			}
 
-			else if(g_iAllAllowAgain < GetTime() && !IsClientInCooldown(client))
+			else if(g_bBlockedAll)
+			{
+				PrintToChat(client, " \x04[Cargo]\x01 Currently in global cooldown, please wait for more %d seconds.", g_iAllAllowAgain - GetTime());
+			}
+
+			else
+			{
 				PlayAudioToAll(client, g_sAudioPath[index]);
+			}
 		}
 	} 
 
@@ -259,13 +276,30 @@ public Action CheckSpamming(Handle timer)
 {
 	g_iMaxSpam = g_Cvar_MaxSpam.IntValue;
 
-	if(g_iStacking >= g_iMaxSpam)
+	if(g_iStacking >= g_iMaxSpam && !g_bBlockedAll)
 	{
 		StopAllSound();
 		g_iAllAllowAgain = GetTime() + 60;
+		CreateTimer(60.0, ResetAllBlock);
 		PrintToChatAll( " \x04[Cargo]\x01 Anti-Spamming has been activated, you can use sound again in %d seconds.", g_iAllAllowAgain - GetTime());
+		g_bBlockedAll = true;
+
 	}
 	return Plugin_Continue;
+}
+
+public Action RemoveStacking(Handle timer)
+{
+	if(g_iStacking > 0)
+		g_iStacking--;
+
+	return Plugin_Continue;
+}
+
+public Action ResetAllBlock(Handle timer)
+{
+	g_bBlockedAll = false;
+	return Plugin_Handled;
 }
 
 public Action StopPlayClientSound_Command(int client, int args)
