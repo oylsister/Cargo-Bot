@@ -283,7 +283,7 @@ public Action CheckSpamming(Handle timer)
 		CreateTimer(60.0, ResetAllBlock);
 		PrintToChatAll( " \x04[Cargo]\x01 Anti-Spamming has been activated, you can use sound again in %d seconds.", g_iAllAllowAgain - GetTime());
 		g_bBlockedAll = true;
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 	return Plugin_Continue;
 }
